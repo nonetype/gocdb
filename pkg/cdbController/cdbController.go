@@ -1,25 +1,30 @@
 package cdbcontroller
 
 import (
+	"container/list"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/nonetype/gocdb/subprocess"
 )
 
 type CdbController struct {
-	cdb Cdb
+	cdb      Cdb
+	hostBits int
 }
 
 func NewController() *CdbController {
+	cdbPath, hostBits, _ := searchCdb()
+	fmt.Printf("cdbPath: %v\n", cdbPath) // DUMMY
 	cdb := NewCdb()
 	cdb.Run()
 	return &CdbController{
-		cdb: *cdb,
+		cdb:      *cdb,
+		hostBits: hostBits,
 	}
 }
 
@@ -56,14 +61,39 @@ func (c Cdb) Run() (pid int, runError error) {
 	return
 }
 
-func searchCdb() (cdbPath string, err error) {
-	pathToProgramFiles := os.Getenv("PROGRAMFILES")
-	if strings.Contains(pathToProgramFiles, "ProgramW6432") {
-		// SET HOST BIT TO 64
-	} // ELSE SET HOST BIT TO 32
-	// CHECK ProgramFiles(x86) TOO
-	// LIST ALL PROGRAMFILE PATH, SEARCH 'Windows Kits\\10', 'Windows Kits\\8.*', 'Debugging Tools for Windows*', ...
-	// IF 'cdb.exe' EXISTS, RETURN PATH
-	// ELSE, RAISE NOT FOUND ERROR
+func searchCdb() (cdbPath string, hostBits int, runError error) {
+	// Get program files paths (check "PROGRAMFILES", "ProgramW6432", "ProgramFiles(x86)")
+	programFilePaths := list.New()
+	programFilePaths.PushBack(os.Getenv("PROGRAMFILES"))
+	if 0 < len(os.Getenv("ProgramW6432")) {
+		hostBits = 64
+		programFilePaths.PushBack(os.Getenv("ProgramW6432"))
+	} else {
+		hostBits = 32
+	}
+	if 0 < len(os.Getenv("ProgramFiles(x86)")) {
+		programFilePaths.PushBack(os.Getenv("ProgramFiles(x86)"))
+	}
+
+	debuggerPaths := list.New()
+	for _, bits := range []string{"x64", "x86"} {
+		debuggerPaths.PushBack(fmt.Sprintf("Windows Kits\\10\\Debuggers\\%s", bits))
+		debuggerPaths.PushBack(fmt.Sprintf("Windows Kits\\8.1\\Debuggers\\%s", bits))
+		debuggerPaths.PushBack(fmt.Sprintf("Windows Kits\\8.0\\Debuggers\\%s", bits))
+		debuggerPaths.PushBack(fmt.Sprintf("Debugging Tools for Windows (%s)", bits))
+		debuggerPaths.PushBack("Debugging Tools for Windows")
+	}
+
+	for progPath := programFilePaths.Front(); progPath != nil; progPath = progPath.Next() {
+		for dbgPath := debuggerPaths.Front(); dbgPath != nil; dbgPath = dbgPath.Next() {
+			fullPath := fmt.Sprintf("%s\\%s\\cdb.exe", progPath.Value, dbgPath.Value)
+			if _, err := os.Stat(fullPath); err == nil {
+				cdbPath = fullPath
+				return
+			}
+		}
+	}
+
+	runError = fs.ErrNotExist
 	return
 }
