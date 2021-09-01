@@ -17,6 +17,10 @@ type CdbController struct {
 	hostBits      int
 }
 
+type CdbEvent struct {
+	output string
+}
+
 func NewController(targetProgram string) *CdbController {
 	cdbPath, hostBits, _ := searchCdb()
 	cdb := NewCdb(cdbPath)
