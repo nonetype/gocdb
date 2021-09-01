@@ -51,6 +51,25 @@ func (c *Cdb) Read() (output string, runError error) {
 	return
 }
 
+func (c *Cdb) ReadAll() (output string, runError error) {
+	if c.stdout != nil {
+		reader := bufio.NewReader(*c.stdout)
+		var outputBuffer bytes.Buffer
+		for {
+			tmpBuf := make([]byte, 1024)
+			reader.Read(tmpBuf)
+			outputString := string(tmpBuf)
+			outputBuffer.WriteString(outputString)
+
+			if cdbConsoleRegex.MatchString(outputString) {
+				output = outputBuffer.String()
+				return
+			}
+		}
+	}
+	return
+}
+
 func (c *Cdb) Write(input string) (runError error) {
 	if c.stdout != nil {
 		writer := bufio.NewWriter(*c.stdin)

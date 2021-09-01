@@ -9,6 +9,8 @@ import (
 	"regexp"
 )
 
+var cdbConsoleRegex = regexp.MustCompile("([0-9]{1}):([0-9]{3})> ")
+
 type CdbController struct {
 	targetProgram string
 	cdb           *Cdb
@@ -39,8 +41,11 @@ func (ctrl *CdbController) readCdb() (output string, runError error) {
 	return
 }
 
-func (ctrl *CdbController) writeCdb(input string) (runError error) {
-	runError = ctrl.cdb.Write(input)
+func (ctrl *CdbController) Execute(command string) (output string, runError error) {
+	log.Printf("Executing '%s'\n", command)
+	runError = ctrl.cdb.Write(command)
+	output, _ = ctrl.cdb.ReadAll()
+	log.Printf("result of '%s': %s\n", command, output)
 	return
 }
 
