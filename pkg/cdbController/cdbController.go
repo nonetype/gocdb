@@ -1,63 +1,115 @@
 package cdbcontroller
 
 import (
+	"bufio"
 	"container/list"
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 
 	"github.com/nonetype/gocdb/subprocess"
 )
 
 type CdbController struct {
-	cdb      Cdb
-	hostBits int
+	targetProgram string
+	cdb           *Cdb
+	hostBits      int
 }
 
-func NewController() *CdbController {
+func NewController(targetProgram string) *CdbController {
 	cdbPath, hostBits, _ := searchCdb()
-	fmt.Printf("cdbPath: %v\n", cdbPath) // DUMMY
-	cdb := NewCdb()
-	cdb.Run()
+	cdb := NewCdb(cdbPath)
 	return &CdbController{
-		cdb:      *cdb,
-		hostBits: hostBits,
+		targetProgram: targetProgram,
+		cdb:           cdb,
+		hostBits:      hostBits,
 	}
 }
 
-func (ctrl CdbController) Stop() {
+func (ctrl *CdbController) Run() {
+	ctrl.cdb.Run(ctrl.targetProgram)
+}
+
+func (ctrl *CdbController) Stop() {
+	log.Println("Stopping CDB")
 	ctrl.cdb.process.Kill()
 }
 
-type Cdb struct {
-	process   os.Process
-	targetPID int
-	stdin     io.WriteCloser
-	stdout    io.ReadCloser
+func (ctrl *CdbController) readCdb() (output string, runError error) {
+	output, runError = ctrl.cdb.Read()
+	return
 }
 
-func NewCdb() *Cdb {
-	return &Cdb{
-		process:   os.Process{},
+func (ctrl *CdbController) writeCdb(input string) (runError error) {
+	runError = ctrl.cdb.Write(input)
+	return
+}
+
+func (ctrl *CdbController) Test() (runError error) {
+	cdbConsoleRegex, _ := regexp.Compile("([0-9]{1}):([0-9]{3})> ")
+	for {
+		output, _ := ctrl.readCdb()
+		fmt.Print(output)
+		if cdbConsoleRegex.MatchString(output) {
+			ctrl.writeCdb("?\n") // |.
+			break
+		}
+	}
+	output, _ := ctrl.readCdb()
+	fmt.Print(output)
+	return
+}
+
+type Cdb struct {
+	cdbPath   string
+	process   *os.Process
+	targetPID int
+	stdin     *io.WriteCloser
+	stdout    *io.ReadCloser
+}
+
+func NewCdb(cdbPath string) *Cdb {
+	cdb := &Cdb{
+		cdbPath:   cdbPath,
+		process:   nil,
 		targetPID: 0,
 		stdin:     nil,
 		stdout:    nil,
 	}
+	return cdb
 }
 
-func (c Cdb) Run() (pid int, runError error) {
-	c.process, c.stdin, c.stdout, runError = subprocess.Run("./", "echo", "HELLO WORLD")
+func (c *Cdb) Run(programArgs ...string) (runError error) {
+	c.process, c.stdin, c.stdout, runError = subprocess.Run(".", c.cdbPath, programArgs...)
 	if runError != nil {
 		log.Fatal(runError)
 	}
-	stdoutValue, _ := ioutil.ReadAll(c.stdout)
-	output := string(stdoutValue)
-	fmt.Println("CDB OUTPUT:", output)
-	fmt.Println("CDB PID:", c.process.Pid)
 
+	return
+}
+
+func (c *Cdb) Read() (output string, runError error) {
+	if c.stdout != nil {
+		reader := bufio.NewReader(*c.stdout)
+		buf := make([]byte, 1024)
+		_, err := reader.Read(buf)
+		if err != nil {
+			runError = err
+		}
+		output = string(buf)
+	}
+	return
+}
+
+func (c *Cdb) Write(input string) (runError error) {
+	if c.stdout != nil {
+		writer := bufio.NewWriter(*c.stdin)
+		writer.WriteString(input)
+		writer.Flush()
+	}
 	return
 }
 

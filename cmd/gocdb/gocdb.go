@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
-
 	cdbcontroller "github.com/nonetype/gocdb/cdbController"
 )
 
 func main() {
-	controller := cdbcontroller.NewController()
-	fmt.Printf("controller: %v\n", controller)
+	controller := cdbcontroller.NewController(".\\test.exe")
+	controller.Run()
+	controller.Test()
+	controller.Stop()
 }
