@@ -1,16 +1,12 @@
 package cdbcontroller
 
 import (
-	"bufio"
 	"container/list"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"os"
 	"regexp"
-
-	"github.com/nonetype/gocdb/subprocess"
 )
 
 type CdbController struct {
@@ -48,68 +44,15 @@ func (ctrl *CdbController) writeCdb(input string) (runError error) {
 	return
 }
 
+// func (ctrl *CdbController) RegisterExceptionHandler(callback func) (runError error)
+// func (ctrl *CdbController) RegisterModuleLoadHandler(callback func) (runError error)
+// func (ctrl *CdbController) RegisterMainHandler(callback func) (runError error)
+
 func (ctrl *CdbController) Test() (runError error) {
-	cdbConsoleRegex, _ := regexp.Compile("([0-9]{1}):([0-9]{3})> ")
-	for {
-		output, _ := ctrl.readCdb()
-		fmt.Print(output)
-		if cdbConsoleRegex.MatchString(output) {
-			ctrl.writeCdb("?\n") // |.
-			break
-		}
-	}
-	output, _ := ctrl.readCdb()
-	fmt.Print(output)
-	return
-}
-
-type Cdb struct {
-	cdbPath   string
-	process   *os.Process
-	targetPID int
-	stdin     *io.WriteCloser
-	stdout    *io.ReadCloser
-}
-
-func NewCdb(cdbPath string) *Cdb {
-	cdb := &Cdb{
-		cdbPath:   cdbPath,
-		process:   nil,
-		targetPID: 0,
-		stdin:     nil,
-		stdout:    nil,
-	}
-	return cdb
-}
-
-func (c *Cdb) Run(programArgs ...string) (runError error) {
-	c.process, c.stdin, c.stdout, runError = subprocess.Run(".", c.cdbPath, programArgs...)
-	if runError != nil {
-		log.Fatal(runError)
-	}
-
-	return
-}
-
-func (c *Cdb) Read() (output string, runError error) {
-	if c.stdout != nil {
-		reader := bufio.NewReader(*c.stdout)
-		buf := make([]byte, 1024)
-		_, err := reader.Read(buf)
-		if err != nil {
-			runError = err
-		}
-		output = string(buf)
-	}
-	return
-}
-
-func (c *Cdb) Write(input string) (runError error) {
-	if c.stdout != nil {
-		writer := bufio.NewWriter(*c.stdin)
-		writer.WriteString(input)
-		writer.Flush()
-	}
+	ctrl.cdb.ReadAll()
+	ctrl.Execute("|.") // |.
+	ctrl.InstallBreakpoint(0x1234, Normal, "")
+	ctrl.ListBreakpoint()
 	return
 }
 
