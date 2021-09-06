@@ -9,7 +9,7 @@ import (
 	"regexp"
 )
 
-var cdbConsoleRegex = regexp.MustCompile("([0-9]{1}):([0-9]{3})> ")
+var cdbConsoleRegex = regexp.MustCompile(`([0-9]{1}):([0-9]{3})> `)
 
 type CdbController struct {
 	targetProgram string
@@ -46,10 +46,8 @@ func (ctrl *CdbController) readCdb() (output string, runError error) {
 }
 
 func (ctrl *CdbController) Execute(command string) (output string, runError error) {
-	log.Printf("Executing '%s'\n", command)
 	runError = ctrl.cdb.Write(command)
 	output, _ = ctrl.cdb.ReadAll()
-	log.Printf("result of '%s': %s\n", command, output)
 	return
 }
 
@@ -60,8 +58,11 @@ func (ctrl *CdbController) Execute(command string) (output string, runError erro
 func (ctrl *CdbController) Test() (runError error) {
 	ctrl.cdb.ReadAll()
 	ctrl.Execute("|.") // |.
-	ctrl.InstallBreakpoint(0x1234, Normal, "")
-	ctrl.ListBreakpoint()
+	ctrl.InstallBreakpoint(0x1234, Normal, "", nil)
+	ctrl.InstallBreakpoint(0x1234, Normal, "", nil)
+	ctrl.InstallBreakpoint(0x5678, Normal, "", nil)
+	ctrl.GetBreakpointCount()
+	fmt.Printf("%v\n", breakpointHandlerMap)
 	return
 }
 
